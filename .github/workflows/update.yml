@@ -1,0 +1,47 @@
+name: Update S&P 500 dataset
+
+on:
+  # Corre no dia 1 de cada mês às 06:00 UTC
+  schedule:
+    - cron: '0 6 16 * *'
+  # Botão manual no GitHub UI (Actions tab → Update S&P 500 dataset → Run workflow)
+  workflow_dispatch:
+
+permissions:
+  contents: write  # necessário para commit + push do dataset atualizado
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Build dataset
+        run: python _build_dataset.py
+
+      - name: Commit and push
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data/sp500.js
+          if git diff --cached --quiet; then
+            echo "No data changes — keepalive commit only."
+            date -u +%Y-%m-%dT%H:%M:%SZ > .last-run
+            git add .last-run
+            git commit -m "chore: keepalive ($(date +%Y-%m-%d))"
+          else
+            date -u +%Y-%m-%dT%H:%M:%SZ > .last-run
+            git add .last-run
+            git commit -m "chore: monthly dataset update ($(date +%Y-%m-%d))"
+            echo "Dataset updated."
+          fi
+          git push
